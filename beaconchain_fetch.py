@@ -9,7 +9,7 @@ import argparse
 import json
 import random
 
-class BeaconchainScraper:
+class Beaconchainfetchr:
     def __init__(self, api_key):
         self.session = requests.Session()
         self.api_key = api_key
@@ -30,11 +30,23 @@ class BeaconchainScraper:
         )
         self.session.mount('https://', HTTPAdapter(max_retries=retry))
 
-    def scrape_leaderboard(self, pages=17973, per_page=100):
+        # Add duration mapping
+        self.DURATION_MAP = {
+            '1day': '1d',
+            '7days': '7d', 
+            '31days': '31d',
+            '365days': '365d'
+        }
+
+    def fetch_leaderboard(self, pages=17973, per_page=100, duration='365days'):
         base_url = "https://beaconcha.in/api/v1/validator/leaderboard"
         total_income = 0.0
-        total_validators_processed = 0  # Track actual processed count
+        total_validators_processed = 0
         page = 0
+        
+        duration_suffix = self.DURATION_MAP.get(duration, '365d')
+        performance_field = f'performance{duration_suffix}'
+        sort_field = performance_field  
         
         try:
             while page < pages:
@@ -48,7 +60,7 @@ class BeaconchainScraper:
                 params = {
                     'limit': per_page,
                     'offset': page * per_page,
-                    'sort': 'performance365d',
+                    'sort': sort_field,  
                     'order': 'desc',
                     'currency': 'ETH'
                 }
@@ -86,9 +98,9 @@ class BeaconchainScraper:
                     logging.debug(f"Income fields: 1y={first_validator.get('performance365d')} | 1year={first_validator.get('performance1y')}")
                     logging.debug(f"Full validator data: {json.dumps(first_validator, indent=2)}")
                 
-                # Accumulate income from all validators in this page
+                # Accumulate income using dynamic field
                 for validator in data:
-                    performance_gwei = validator.get('performance365d', 0)
+                    performance_gwei = validator.get(performance_field, 0)
                     income_eth = float(performance_gwei) / 10**9 if performance_gwei else 0.0
                     total_income += income_eth
                     total_validators_processed += 1
@@ -100,18 +112,30 @@ class BeaconchainScraper:
                 return 0.0
             
             average_income = total_income / total_validators_processed
-            logging.info(f"Average 1-year income: {average_income:.6f} ETH (based on {total_validators_processed} validators)")
+            logging.info(f"Average {duration} income: {average_income:.6f} ETH (based on {total_validators_processed} validators)")
             return average_income
 
+        except KeyboardInterrupt:
+            logging.info("\nInterrupted by user. Returning partial results...")
+            if total_validators_processed > 0:
+                average_income = total_income / total_validators_processed
+                logging.info(f"Partial {duration} income: {average_income:.6f} ETH (based on {total_validators_processed} validators)")
+                return average_income
+            return 0.0
         except Exception as e:
             logging.error(f"Scraping failed: {str(e)}")
             raise
 
-    def scrape_random_sample(self, sample_size=1000, per_page=100):
+    def fetch_random_sample(self, sample_size=1000, per_page=100, duration='365days'):
         base_url = "https://beaconcha.in/api/v1/validator/leaderboard"
-        total_validators = 1797225  # Confirmed total
+        total_validators = 1797225
         total_income = 0.0
         sampled = 0
+        
+        # Get duration parameters
+        duration_suffix = self.DURATION_MAP.get(duration, '365d')
+        performance_field = f'performance{duration_suffix}'
+        sort_field = performance_field
         
         # Generate unique random pages with caching
         unique_pages = set()
@@ -130,7 +154,7 @@ class BeaconchainScraper:
                 params = {
                     'limit': per_page,
                     'offset': page * per_page,
-                    'sort': 'performance365d',
+                    'sort': sort_field,  # Dynamic sort field
                     'order': 'desc',
                     'currency': 'ETH'
                 }
@@ -150,7 +174,7 @@ class BeaconchainScraper:
                 
                 for pos in page_indices:
                     if pos < len(data):
-                        performance_gwei = data[pos].get('performance365d', 0)
+                        performance_gwei = data[pos].get(performance_field, 0)
                         total_income += float(performance_gwei) / 10**9
                         sampled += 1
                 
@@ -160,15 +184,22 @@ class BeaconchainScraper:
 
             return total_income / sampled if sampled else 0.0
 
+        except KeyboardInterrupt:
+            logging.info("\nInterrupted by user. Returning partial sample...")
+            if sampled > 0:
+                average_income = total_income / sampled
+                logging.info(f"Partial {duration} income: {average_income:.6f} ETH (based on {sampled} validators)")
+                return average_income
+            return 0.0
         except Exception as e:
             logging.error(f"Random sampling failed: {str(e)}")
             raise
 
 def main():
-    parser = argparse.ArgumentParser(description='Beaconcha.in Validator Income Scraper')
+    parser = argparse.ArgumentParser(description='Beaconcha.in Validator Income fetchr')
     parser.add_argument('--api-key', required=True, help='Beaconcha.in API key')
     parser.add_argument('--pages', type=int, default=17973, 
-                      help='Number of pages to scrape (default: all 17973)')
+                      help='Number of pages to fetch (default: all 17973)')
     parser.add_argument('--per-page', type=int, default=100,
                       help='Items per page (default: 100)')
     parser.add_argument('--output', type=str,
@@ -177,6 +208,8 @@ def main():
                       default='info', help='Set logging verbosity level')
     parser.add_argument('--sample-size', type=int,
                       help='Number of validators to sample randomly')
+    parser.add_argument('--duration', choices=['1day', '7days', '31days', '365days'],
+                      default='365days', help='Time period for income calculation')
 
     args = parser.parse_args()
     
@@ -186,19 +219,21 @@ def main():
         level=args.log_level.upper()
     )
 
-    scraper = BeaconchainScraper(args.api_key)
+    fetchr = Beaconchainfetchr(args.api_key)
     try:
         if args.sample_size:
-            avg_income = scraper.scrape_random_sample(
+            avg_income = fetchr.fetch_random_sample(
                 sample_size=args.sample_size,
-                per_page=args.per_page
+                per_page=args.per_page,
+                duration=args.duration
             )
         else:
-            avg_income = scraper.scrape_leaderboard(
+            avg_income = fetchr.fetch_leaderboard(
                 pages=args.pages,
-                per_page=args.per_page
+                per_page=args.per_page,
+                duration=args.duration
             )
-        result = f"Average 1-year income: {avg_income:.6f} ETH"
+        result = f"Average {args.duration} income: {avg_income:.6f} ETH"
         
         if args.output:
             with open(args.output, 'w') as f:
@@ -207,6 +242,14 @@ def main():
         else:
             print(result)
             
+    except KeyboardInterrupt:
+        logging.info("Interrupt received. Calculating partial results...")
+        if fetchr.current_total_validators > 0:
+            avg_income = fetchr.current_total_income / fetchr.current_total_validators
+            result = f"Partial average {args.duration} income: {avg_income:.6f} ETH (based on {fetchr.current_total_validators} validators)"
+        else:
+            result = "No validators processed yet."
+        print(result)
     except Exception as e:
         logging.error(f"CLI execution failed: {str(e)}")
         exit(1)
