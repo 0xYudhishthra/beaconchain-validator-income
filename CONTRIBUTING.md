@@ -1,14 +1,17 @@
-# Contribution Guidelines
+# How to Contribute
 
-Welcome! Please follow these steps:
-1. Open an issue to discuss proposed changes
-2. Fork the repository and create a feature branch
-3. Submit a pull request with detailed description
+We welcome contributions! Please:
 
-Requirements:
-- Code must pass basic validation checks
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-idea`)
+3. Commit changes with clear messages
+4. Open a Pull Request
+
+Guidelines:
+- Keep PRs focused on single improvements
 - Include tests for new features
-- Update documentation when applicable
+- Update documentation accordingly
+- Follow existing code style
 
-Thank you for improving this project!
+By contributing, you agree to license your work under the MIT License.
 
