@@ -12,11 +12,11 @@ This tool helps researchers and validators:
 - Handle API rate limits and resume interrupted operations
 
 Key technical features:
-⌛ Adjustable time frames (1 day to 1 year)
-📊 Full dataset processing or random sampling
-⚡ Rate limiting with exponential backoff
-🛑 Graceful interruption handling (saves partial results)
-📁 Configurable output formatting and file saving
+- ⌛ Adjustable time frames (1 day to 1 year)
+- 📊 Full dataset processing or random sampling
+- ⚡ Rate limiting with exponential backoff
+- 🛑 Graceful interruption handling (saves partial results)
+- 📁 Configurable output formatting and file saving
 
 ## Installation
 
